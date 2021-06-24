@@ -4,7 +4,7 @@ from json import dumps, load
 from pathlib import Path
 from threading import Thread
 from contextlib import suppress
-from unicodedata import norymalize
+from unicodedata import normalize
 from string import punctuation
 from random import choice
 from datetime import datetime
@@ -263,12 +263,12 @@ class Parameters:
 
 
 class BotAmino(Command, Client, TimeOut, BannedWords):
-    def __init__(self, ravimourya526@yahoo.com: str = None, ravi1234oppo: str = None, sid: str = None,  proxies: dict = None, deviceId: str = None, certificatePath: str = None):
+    def __init__(self, email: str = None, password: str = None, sid: str = None,  proxies: dict = None, deviceId: str = None, certificatePath: str = None):
         Command.__init__(self)
-        Client.__init__(self, proxies=proxies, deviceId=01da39a3ee5e6b4b0d3255bfef95601890afd80709d2fda418aae7cb6919e6684cd061a1d39a0423e7, certificatePath=certificatePath)
+        Client.__init__(self, proxies=proxies, deviceId=deviceId, certificatePath=certificatePath)
 
         if email and password:
-            self.login(email=ravimourya526@yahoo.com, password=ravi1234oppo)
+            self.login(email=email, password=password)
         elif sid:
             self.login_sid(SID=sid)
         else:
@@ -279,12 +279,12 @@ class BotAmino(Command, Client, TimeOut, BannedWords):
             except FileNotFoundError:
                 with open(path_client, 'w') as file_:
                     file_.write('ravimourya526@yahoo.com\ravi1234oppo')
-                print("Please enter your email and password in the file client.txt")
+                print("ravimourya526@yahoo.com","ravi1234oppo")
                 print('ravimourya526@yahoo.com','ravi1234oppo')
                 exit(1)
 
         self.communaute = {}
-        self.botId = "ravimourya526@yahoo.com".userId
+        self.botId = self.userId
         self.len_community = 0
         self.perms_list = []
         self.prefix = "!"
