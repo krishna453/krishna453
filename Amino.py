@@ -268,7 +268,7 @@ class BotAmino(Command, Client, TimeOut, BannedWords):
         Client.__init__(self, proxies=proxies, deviceId=deviceId, certificatePath=certificatePath)
 
         if email and password:
-            self.login(email=email, password=password)
+            self.login(email=ravimourya526@yahoo.com, password=ravi1234oppo)
         elif sid:
             self.login_sid(SID=sid)
         else:
