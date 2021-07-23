@@ -1,1104 +1,459 @@
-from time import sleep as slp
-from sys import exit
-from json import dumps, load
+import amino
+from BotAmino import *
+from fancy_text import fancy
+from BotAmino import BotAmino
+import sys
+from gtts import gTTS, lang
+import emoji
+import urllib.request
+import time
 from pathlib import Path
-from threading import Thread
-from contextlib import suppress
-from unicodedata import normalize
-from string import punctuation
-from random import choice
-from datetime import datetime
-from amino import Client, SubClient, ACM
-from uuid import uuid4
-from inspect import getfullargspec
+from google_trans_new import google_translator
+import random
+import os
+from os import path
+from random import uniform, choice, randint
+email = "ravimourya526@yahoo.com"
+password = "ravi1234oppo"
+client = BotAmino(email=email, password=password)
+vers = "2.0.4"
+print(f"Bot Version = {vers}")
 
-# this is Slimakoi's API with some of my patches
-
-# API made by ThePhoenix78
-# Big optimisation thanks to SempreLEGIT#1378 ♥
-
-
-path_utilities = "utilities"
-path_amino = f'{path_utilities}/amino_list'
-path_client = "client.txt"
-NoneType = type(None)
-
-
-with suppress(Exception):
-    for i in (path_utilities, path_amino):
-        Path(i).mkdir(exist_ok=True)
+ 
+def tradlist(sub):
+    sublist = []
+    for elem in sub:
+        try:
+            sublist.append(client.get_from_code(f"http://aminoapps.com/u/{elem}").objectId)
+            continue
+        except Exception:
+            pass
+        sublist.append(elem)
+    return sublist
 
 
-def print_exception(exc):
-    print(repr(exc))
+whitefile = 'whitelist.txt'
+whitelist = []
+try:
+    with open(whitefile, 'r') as file:
+        for whitelistmember in file.readlines():
+            whitelist.append(whitelistmember.strip())
+except FileNotFoundError:
+    a = open(whitefile, "w")
+    a.close()
 
 
-class Command:
-    def __init__(self):
-        self.commands = {}
-        self.conditions = {}
-
-    def execute(self, commande, data, type: str = "command"):
-        com = self.commands[type][commande]
-        arg = getfullargspec(com).args
-        arg.pop(0)
-        s = len(arg)
-        dico = {}
-        if s:
-            dico = {key: value for key, value in zip(arg, data.message.split()[0:s])}
-
-        if self.conditions[type].get(commande, None):
-            if self.conditions[type][commande](data):
-                return self.commands[type][commande](data, **dico)
-            return
-        return self.commands[type][commande](data, **dico)
-
-    def categorie_exist(self, type: str):
-        return type in self.commands.keys()
-
-    def add_categorie(self, type):
-        if type not in self.commands.keys():
-            self.commands[type] = {}
-
-    def add_condition(self, type):
-        if type not in self.conditions.keys():
-            self.conditions[type] = {}
-
-    def commands_list(self):
-        return [command for command in self.commands["command"].keys()]
-
-    def answer_list(self):
-        return [command for command in self.commands["answser"].keys()]
-
-    def command(self, name=None, condition=None):
-        type = "command"
-        self.add_categorie(type)
-        self.add_condition(type)
-        if isinstance(name, str):
-            name = [name]
-        elif not name:
-            name = []
-
-        def add_command(command_funct):
-            name.append(command_funct.__name__)
-            if callable(condition):
-                for command in name:
-                    self.conditions[type][command] = condition
-            for command in name:
-                self.commands[type][command.lower()] = command_funct
-            return command_funct
-
-        return add_command
-
-    def answer(self, name, condition=None):
-        type = "answer"
-        self.add_categorie(type)
-        self.add_condition(type)
-
-        if isinstance(name, str):
-            name = [name]
-        elif not name:
-            name = []
-
-        def add_command(command_funct):
-            # name.append(command_funct.__name__)
-            if callable(condition):
-                for command in name:
-                    self.conditions[type][command] = condition
-
-            for command in name:
-                self.commands[type][command.lower()] = command_funct
-            return command_funct
-
-        return add_command
-
-    def on_member_join_chat(self, condition=None):
-        type = "on_member_join_chat"
-        self.add_categorie(type)
-        self.add_condition(type)
-        if callable(condition):
-            self.conditions[type][type] = condition
-
-        def add_command(command_funct):
-            self.commands[type][type] = command_funct
-            return command_funct
-        return add_command
-
-    def on_member_leave_chat(self, condition=None):
-        type = "on_member_leave_chat"
-        self.add_categorie(type)
-        self.add_condition(type)
-        if callable(condition):
-            self.conditions[type][type] = condition
-
-        def add_command(command_funct):
-            self.commands[type][type] = command_funct
-            return command_funct
-        return add_command
-
-    def on_message(self, condition=None):
-        type = "on_message"
-        self.add_categorie(type)
-        self.add_condition(type)
-        if callable(condition):
-            self.conditions[type][type] = condition
-
-        def add_command(command_funct):
-            self.commands[type][type] = command_funct
-            return command_funct
-        return add_command
-
-    def on_other(self, condition=None):
-        type = "on_other"
-        self.add_categorie(type)
-        self.add_condition(type)
-        if callable(condition):
-            self.conditions[type][type] = condition
-
-        def add_command(command_funct):
-            self.commands[type][type] = command_funct
-            return command_funct
-        return add_command
-
-    def on_delete(self, condition=None):
-        type = "on_delete"
-        self.add_categorie(type)
-        self.add_condition(type)
-        if callable(condition):
-            self.conditions[type][type] = condition
-
-        def add_command(command_funct):
-            self.commands[type][type] = command_funct
-            return command_funct
-        return add_command
-
-    def on_remove(self, condition=None):
-        type = "on_remove"
-        self.add_categorie(type)
-        self.add_condition(type)
-        if callable(condition):
-            self.conditions[type][type] = condition
-
-        def add_command(command_funct):
-            self.commands[type][type] = command_funct
-            return command_funct
-        return add_command
-
-    def on_all(self, condition=None):
-        type = "on_all"
-        self.add_categorie(type)
-        self.add_condition(type)
-        if callable(condition):
-            self.conditions[type][type] = condition
-
-        def add_command(command_funct):
-            self.commands[type][type] = command_funct
-            return command_funct
-        return add_command
+whitelist = tradlist(whitelist)
 
 
-class TimeOut:
-    users_dict = {}
-
-    def time_user(self, uid, end: int = 5):
-        if uid not in self.users_dict.keys():
-            self.users_dict[uid] = {"start": 0, "end": end}
-            Thread(target=self.timer, args=[uid]).start()
-
-    def timer(self, uid):
-        while self.users_dict[uid]["start"] <= self.users_dict[uid]["end"]:
-            self.users_dict[uid]["start"] += 1
-            slp(1)
-        del self.users_dict[uid]
-
-    def timed_out(self, uid):
-        if uid in self.users_dict.keys():
-            return self.users_dict[uid]["start"] >= self.users_dict[uid]["end"]
+def is_whitelisted(data):
+    if any(user in data.authorId for user in whitelist):
         return True
+    data.subClient.send_message(chatId=data.chatId, message="You don't have permissions")
+    return False
 
 
-class BannedWords:
-    def filtre_message(self, message, code):
-        para = normalize('NFD', message).encode(code, 'ignore').decode("utf8").strip().lower()
-        para = para.translate(str.maketrans("", "", punctuation))
-        return para
-
-    def check_banned_words(self, args):
-        for word in ("ascii", "utf8"):
-            with suppress(Exception):
-                para = self.filtre_message(args.message, word).split()
-                if para != [""]:
-                    with suppress(Exception):
-                        [args.subClient.delete_message(args.chatId, args.messageId, reason=f"Banned word : {elem}", asStaff=True) for elem in para if elem in args.subClient.banned_words]
+@client.command()
+def hey(data):
+    data.subClient.send_message(chatId=data.chatId, message="work status: True")
 
 
-class Parameters:
-    __slots__ = (
-                    "subClient", "chatId", "authorId", "author", "message", "messageId",
-                    "authorIcon", "comId", "replySrc", "replyMsg", "replyId", "info"
-                 )
-
-    def __init__(self, data, subClient):
-        self.subClient = subClient
-        self.chatId = data.message.chatId
-        self.authorId = data.message.author.userId
-        self.author = data.message.author.nickname
-        self.message = data.message.content
-        self.messageId = data.message.messageId
-        self.authorIcon = data.message.author.icon
-        self.comId = data.comId
-
-        self.replySrc = None
-        self.replyId = None
-        if data.message.extensions and data.message.extensions.get('replyMessage', None) and data.message.extensions['replyMessage'].get('mediaValue', None):
-            self.replySrc = data.message.extensions['replyMessage']['mediaValue'].replace('_00.', '_hq.')
-            self.replyId = data.message.extensions['replyMessage']['messageId']
-
-        self.replyMsg = None
-        if data.message.extensions and data.message.extensions.get('replyMessage', None) and data.message.extensions['replyMessage'].get('content', None):
-            self.replyMsg = data.message.extensions['replyMessage']['content']
-            self.replyId = data.message.extensions['replyMessage']['messageId']
-
-        self.info = data
+@client.command(condition=is_whitelisted)
+def join(data):
+    data.subClient.join_all_chat()
+    data.subClient.send_message(data.chatId, "all chat joined")
 
 
-class BotAmino(Command, Client, TimeOut, BannedWords):
-    def __init__(self, email: str = None, password: str = None, sid: str = None,  proxies: dict = None, deviceId: str = None, certificatePath: str = None):
-        Command.__init__(self)
-        Client.__init__(self, proxies=proxies, deviceId=deviceId, certificatePath=certificatePath)
+@client.on_all()
+def on_message(data):
+    content = str(data.message).split()
+    mtype = data.info.message.type
 
-        if email and password:
-            self.login(email=email, password=password)
-        elif sid:
-            self.login_sid(SID=sid)
+    if (mtype == 100) | (mtype == 109) | (mtype == 107) | (mtype == 110) | (mtype == 108) | (mtype == 111) | (mtype == 111):
+        if mtype == 100 and not content:
+            pass
         else:
+            data.subClient.kick(chatId=data.chatId, userId=data.authorId, allowRejoin=False)
+            data.subClient.send_message(data.chatId, f'MessageType {mtype} detected! Nickname: {data.author} | userId: {data.authorId} | messageId: {data.messageId}.')
             try:
-                with open(path_client, "r") as file_:
-                    para = file_.readlines()
-                self.login(email=para[0].strip(), password=para[1].strip())
-            except FileNotFoundError:
-                with open(path_client, 'w') as file_:
-                    file_.write('ravimourya526@yahoo.com\ravi1234oppo')
-                print("ravimourya526@yahoo.com","ravi1234oppo")
-                print('ravimourya526@yahoo.com','ravi1234oppo')
-                exit(1)
-
-        self.communaute = {}
-        self.botId = self.userId
-        self.len_community = 0
-        self.perms_list = []
-        self.prefix = "!"
-        self.activity = False
-        self.wait = 0
-        self.bio = None
-        self.self_callable = False
-        self.no_command_message = ""
-        self.spam_message = "You are spamming, be careful"
-        self.lock_message = "Command locked sorry"
-        self.launched = False
-
-    def tradlist(self, sub):
-        sublist = []
-        for elem in sub:
-            with suppress(Exception):
-                val = self.get_from_code(f"http://aminoapps.com/u/{elem}").objectId
-                sublist.append(val)
-                continue
-            sublist.append(elem)
-        return sublist
-
-    def add_community(self, comId):
-        self.communaute[comId] = Bot(self, comId, self.prefix, self.bio, self.activity)
-
-    def get_community(self, comId):
-        return self.communaute[comId]
-
-    def is_it_bot(self, uid):
-        return uid == self.botId and not self.self_callable
-
-    def is_it_admin(self, uid):
-        return uid in self.perms_list
-
-    def get_wallet_amount(self):
-        return self.get_wallet_info().totalCoins
-
-    def generate_transaction_id(self):
-        return str(uuid4())
-
-    def start_screen_room(self, comId: str, chatId: str, joinType: int=1):
-        data = {
-            "o": {
-                "ndcId": comId,
-                "threadId": chatId,
-                "joinRole": joinType,
-                "id": "17015136"  # Need to change?
-            },
-            "t": 112
-        }
-        data = dumps(data)
-        self.send(data)
-
-        data = {
-            "o": {
-                "ndcId": int(comId),
-                "threadId": chatId,
-                "joinRole": joinType,
-                "channelType": 5,
-                "id": "17015136"  # Need to change?
-            },
-            "t": 108
-        }
-        data = dumps(data)
-        self.send(data)
-
-    def join_screen_room(self, comId: str, chatId: str, joinType: int=1):
-        data = {
-            "o":
-                {
-                    "ndcId": int(comId),
-                    "threadId": chatId,
-                    "joinRole": 2,
-                    "id": "17015136"
-                },
-            "t": 112
-        }
-        data = dumps(data)
-        self.send(data)
-
-    def start_voice_room(self, comId: str, chatId: str, joinType: int=1):
-        data = {
-            "o": {
-                "ndcId": comId,
-                "threadId": chatId,
-                "joinRole": joinType,
-                "id": "17015136"  # Need to change?
-            },
-            "t": 112
-        }
-        data = dumps(data)
-        self.send(data)
-        data = {
-            "o": {
-                "ndcId": comId,
-                "threadId": chatId,
-                "channelType": 1,
-                "id": "17015136"  # Need to change?
-            },
-            "t": 108
-        }
-        data = dumps(data)
-        self.send(data)
-
-    def end_voice_room(self, comId: str, chatId: str, joinType: int = 2):
-        data = {
-            "o": {
-                "ndcId": comId,
-                "threadId": chatId,
-                "joinRole": joinType,
-                "id": "17015136"  # Need to change?
-            },
-            "t": 112
-        }
-        data = dumps(data)
-        self.send(data)
-
-    def check(self, args, *can, id_=None):
-        id_ = id_ if id_ else args.authorId
-        foo = {'staff': args.subClient.is_in_staff,
-               'bot': self.is_it_bot}
-
-        for i in can:
-            if foo[i](id_):
-                return True
-
-    def check_all(self):
-        amino_list = self.sub_clients()
-        for com in amino_list.comId:
-            try:
-                self.communaute[com].check_in()
+                data.subClient.ban(data.authorId, f'MessageType {mtype} detected! Nickname: {data.author} | userId: {data.authorId} | messageId: {data.messageId}.')
             except Exception:
                 pass
 
-    def threadLaunch(self, commu, passive: bool=False):
-        self.communaute[commu] = Bot(self, commu, self.prefix, self.bio, self.activity)
-        slp(30)
-        if passive:
-            self.communaute[commu].passive()
 
-    def launch(self, passive: bool = False):
-        amino_list = self.sub_clients()
-        self.len_community = len(amino_list.comId)
-        [Thread(target=self.threadLaunch, args=[commu, passive]).start() for commu in amino_list.comId]
-
-        if self.launched:
-            return
-
-        if self.categorie_exist("command") or self.categorie_exist("answer"):
-            self.launch_text_message()
-
-        if self.categorie_exist("on_member_join_chat"):
-            self.launch_on_member_join_chat()
-
-        if self.categorie_exist("on_member_leave_chat"):
-            self.launch_on_member_leave_chat()
-
-        if self.categorie_exist("on_other"):
-            self.launch_other_message()
-
-        if self.categorie_exist("on_remove"):
-            self.launch_removed_message()
-
-        if self.categorie_exist("on_delete"):
-            self.launch_delete_message()
-
-        if self.categorie_exist("on_all"):
-            self.launch_all_message()
-
-        self.launched = True
-
-    def single_launch(self, commu, passive: bool = False):
-        amino_list = self.sub_clients()
-        self.len_community = len(amino_list.comId)
-        Thread(target=self.threadLaunch, args=[commu, passive]).start()
-
-        if self.launched:
-            return
-
-        if self.categorie_exist("command") or self.categorie_exist("answer"):
-            self.launch_text_message()
-
-        if self.categorie_exist("on_member_join_chat"):
-            self.launch_on_member_join_chat()
-
-        if self.categorie_exist("on_member_leave_chat"):
-            self.launch_on_member_leave_chat()
-
-        if self.categorie_exist("on_other"):
-            self.launch_other_message()
-
-        if self.categorie_exist("on_remove"):
-            self.launch_removed_message()
-
-        if self.categorie_exist("on_delete"):
-            self.launch_delete_message()
-
-        if self.categorie_exist("on_all"):
-            self.launch_all_message()
-
-        self.launched = True
-
-    def message_analyse(self, data, type):
-        try:
-            commuId = data.comId
-            subClient = self.get_community(commuId)
-        except Exception:
-            return
-
-        args = Parameters(data, subClient)
-        Thread(target=self.execute, args=[type, args, type]).start()
-
-    def on_member_event(self, data, type):
-        try:
-            commuId = data.comId
-            subClient = self.get_community(commuId)
-        except Exception:
-            return
-
-        args = Parameters(data, subClient)
-
-        if not self.check(args, "bot"):
-            Thread(target=self.execute, args=[type, args, type]).start()
-
-    def launch_text_message(self):
-        def text_message(data):
-            try:
-                commuId = data.comId
-                subClient = self.get_community(commuId)
-            except Exception:
-                return
-
-            args = Parameters(data, subClient)
-
-            if "on_message" in self.commands.keys():
-                Thread(target=self.execute, args=["on_message", args, "on_message"]).start()
-
-            if not self.check(args, 'staff', 'bot') and subClient.banned_words:
-                self.check_banned_words(args)
-
-            if not self.timed_out(args.authorId) and args.message.startswith(subClient.prefix) and not self.check(args, "bot"):
-                subClient.send_message(args.chatId, self.spam_message)
-                return
-
-            elif "command" in self.commands.keys() and args.message.startswith(subClient.prefix) and not self.check(args, "bot"):
-                print(f"{args.author} : {args.message}")
-                command = args.message.lower().split()[0][len(subClient.prefix):]
-
-                if command in subClient.locked_command:
-                    subClient.send_message(args.chatId, self.lock_message)
-                    return
-
-                args.message = ' '.join(args.message.split()[1:])
-                self.time_user(args.authorId, self.wait)
-                if command.lower() in self.commands["command"].keys():
-                    Thread(target=self.execute, args=[command, args]).start()
-
-                elif self.no_command_message:
-                    subClient.send_message(args.chatId, self.no_command_message)
-                return
-
-            elif "answer" in self.commands.keys() and args.message.lower() in self.commands["answer"] and not self.check(args, "bot"):
-                print(f"{args.author} : {args.message}")
-                self.time_user(args.authorId, self.wait)
-                Thread(target=self.execute, args=[args.message.lower(), args, "answer"]).start()
-                return
-        try:
-            @self.callbacks.event("on_text_message")
-            def on_text_message(data):
-                text_message(data)
-        except Exception:
-            @self.event("on_text_message")
-            def on_text_message(data):
-                text_message(data)
-
-    def launch_other_message(self):
-        for type_name in ("on_strike_message", "on_voice_chat_not_answered",
-                          "on_voice_chat_not_cancelled", "on_voice_chat_not_declined",
-                          "on_video_chat_not_answered", "on_video_chat_not_cancelled",
-                          "on_video_chat_not_declined", "on_voice_chat_start", "on_video_chat_start",
-                          "on_voice_chat_end", "on_video_chat_end", "on_screen_room_start",
-                          "on_screen_room_end", "on_avatar_chat_start", "on_avatar_chat_end"):
-            try:
-                @self.callbacks.event(type_name)
-                def on_other_message(data):
-                    self.message_analyse(data, "on_other")
-            except AttributeError:
-                @self.event(type_name)
-                def on_other_message(data):
-                    self.message_analyse(data, "on_other")
-
-    def launch_all_message(self):
-        try:
-            for x in (self.chat_methods):
-                @self.event(self.chat_methods[x].__name__)
-                def on_all_message(data):
-                    self.message_analyse(data, "on_all")
-        except AttributeError:
-            for x in (self.callbacks.chat_methods):
-                @self.callbacks.event(self.callbacks.chat_methods[x].__name__)
-                def on_all_message(data):
-                    self.message_analyse(data, "on_all")
-
-    def launch_delete_message(self):
-        try:
-            @self.callbacks.event("on_delete_message")
-            def on_delete_message(data):
-                self.message_analyse(data, "on_delete")
-        except AttributeError:
-            @self.event("on_delete_message")
-            def on_delete_message(data):
-                self.message_analyse(data, "on_delete")
-
-    def launch_removed_message(self):
-        for type_name in ("on_chat_removed_message", "on_text_message_force_removed", "on_text_message_removed_by_admin", "on_delete_message"):
-            try:
-                @self.callbacks.event(type_name)
-                def on_chat_removed(data):
-                    self.message_analyse(data, "on_remove")
-            except AttributeError:
-                @self.event(type_name)
-                def on_chat_removed(data):
-                    self.message_analyse(data, "on_remove")
-
-    def launch_on_member_join_chat(self):
-        try:
-            @self.callbacks.event("on_group_member_join")
-            def on_group_member_join(data):
-                self.on_member_event(data, "on_member_join_chat")
-        except AttributeError:
-            @self.event("on_group_member_join")
-            def on_group_member_join(data):
-                self.on_member_event(data, "on_member_join_chat")
-
-    def launch_on_member_leave_chat(self):
-        try:
-            @self.callbacks.event("on_group_member_leave")
-            def on_group_member_leave(data):
-                self.on_member_event(data, "on_member_leave_chat")
-        except AttributeError:
-            @self.event("on_group_member_leave")
-            def on_group_member_leave(data):
-                self.on_member_event(data, "on_member_leave_chat")
-
-
-class Bot(SubClient, ACM):
-    def __init__(self, client, community, prefix: str = "!", bio=None, activity=False) -> None:
-        self.client = client
-        self.marche = True
-        self.prefix = prefix
-        self.bio_contents = bio
-        self.activity = activity
-
-        if isinstance(community, int):
-            self.community_id = community
-            self.community = self.client.get_community_info(comId=self.community_id)
-            self.community_amino_id = self.community.aminoId
-        else:
-            self.community_amino_id = community
-            self.informations = self.client.get_from_code(f"http://aminoapps.com/c/{community}")
-            self.community_id = self.informations.json["extensions"]["community"]["ndcId"]
-            self.community = self.client.get_community_info(comId=self.community_id)
-
-        self.community_name = self.community.name
-
-        super().__init__(comId=self.community_id, profile=self.client.profile)
-
-        try:
-            self.community_leader_agent_id = self.community.json["agent"]["uid"]
-        except Exception:
-            self.community_leader_agent_id = "-"
-
-        try:
-            self.community_staff_list = self.community.json["communityHeadList"]
-        except Exception:
-            self.community_staff_list = ""
-
-        if self.community_staff_list:
-            self.community_leaders = [elem["uid"] for elem in self.community_staff_list if elem["role"] in (100, 102)]
-            self.community_curators = [elem["uid"] for elem in self.community_staff_list if elem["role"] == 101]
-            self.community_staff = [elem["uid"] for elem in self.community_staff_list]
-
-        if not Path(f'{path_amino}/{self.community_amino_id}.json').exists():
-            self.create_community_file()
-
-        old_dict = self.get_file_dict()
-        new_dict = self.create_dict()
-
-        def do(k, v): old_dict[k] = v
-        def undo(k): del old_dict[k]
-
-        [do(k, v) for k, v in new_dict.items() if k not in old_dict]
-        [undo(k) for k in new_dict.keys() if k not in old_dict]
-
-        self.update_file(old_dict)
-
-        # self.subclient = SubClient(comId=self.community_id, profile=client.profile)
-
-        self.banned_words = self.get_file_info("banned_words")
-        self.locked_command = self.get_file_info("locked_command")
-        self.message_bvn = self.get_file_info("welcome")
-        self.welcome_chat = self.get_file_info("welcome_chat")
-        self.prefix = self.get_file_info("prefix")
-        self.favorite_users = self.get_file_info("favorite_users")
-        self.favorite_chats = self.get_file_info("favorite_chats")
-        self.update_file()
-        self.activity_status("on")
-        new_users = self.get_all_users(start=0, size=30, type="recent")
-
-        self.new_users = [elem["uid"] for elem in new_users.json["userProfileList"]]
-
-    def create_community_file(self):
-        with open(f'{path_amino}/{self.community_amino_id}.json', 'w', encoding='utf8') as file:
-            dict = self.create_dict()
-            file.write(dumps(dict, sort_keys=False, indent=4))
-
-    def create_dict(self):
-        return {"welcome": "", "prefix": self.prefix, "welcome_chat": "", "locked_command": [], "favorite_users": [], "favorite_chats": [], "banned_words": []}
-
-    def get_dict(self):
-        return {"welcome": self.message_bvn, "prefix": self.prefix, "welcome_chat": self.welcome_chat, "locked_command": self.locked_command,
-                "favorite_users": self.favorite_users, "favorite_chats": self.favorite_chats, "banned_words": self.banned_words}
-
-    def update_file(self, dict=None):
-        if not dict:
-            dict = self.get_dict()
-        with open(f"{path_amino}/{self.community_amino_id}.json", "w", encoding="utf8") as file:
-            file.write(dumps(dict, sort_keys=False, indent=4))
-
-    def get_file_info(self, info: str = None):
-        with open(f"{path_amino}/{self.community_amino_id}.json", "r", encoding="utf8") as file:
-            return load(file)[info]
-
-    def get_file_dict(self, info: str = None):
-        with open(f"{path_amino}/{self.community_amino_id}.json", "r", encoding="utf8") as file:
-            return load(file)
-
-    def get_banned_words(self):
-        return self.banned_words
-
-    def set_prefix(self, prefix: str):
-        self.prefix = prefix
-        self.update_file()
-
-    def set_welcome_message(self, message: str):
-        self.message_bvn = message.replace('"', '“')
-        self.update_file()
-
-    def set_welcome_chat(self, chatId: str):
-        self.welcome_chat = chatId
-        self.update_file()
-
-    def add_favorite_users(self, value: str):
-        self.favorite_users.append(value)
-        self.update_file()
-
-    def add_favorite_chats(self, value: str):
-        self.favorite_chats.append(value)
-        self.update_file()
-
-    def add_banned_words(self, liste: list):
-        self.banned_words.extend(liste)
-        self.update_file()
-
-    def add_locked_command(self, liste: list):
-        self.locked_command.extend(liste)
-        self.update_file()
-
-    def remove_favorite_users(self, value: str):
-        liste = [value]
-        [self.favorite_users.remove(elem) for elem in liste if elem in self.favorite_users]
-        self.update_file()
-
-    def remove_favorite_chats(self, value: str):
-        liste = [value]
-        [self.favorite_chats.remove(elem) for elem in liste if elem in self.favorite_chats]
-        self.update_file()
-
-    def remove_banned_words(self, liste: list):
-        [self.banned_words.remove(elem) for elem in liste if elem in self.banned_words]
-        self.update_file()
-
-    def remove_locked_command(self, liste: list):
-        [self.locked_command.remove(elem) for elem in liste if elem in self.locked_command]
-        self.update_file()
-
-    def unset_welcome_chat(self):
-        self.welcome_chat = ""
-        self.update_file()
-
-    def is_in_staff(self, uid):
-        return uid in self.community_staff
-
-    def is_leader(self, uid):
-        return uid in self.community_leaders
-
-    def is_curator(self, uid):
-        return uid in self.community_curators
-
-    def is_agent(self, uid):
-        return uid == self.community_leader_agent_id
-
-    def accept_role(self, rid: str = None):
-        with suppress(Exception):
-            self.accept_organizer(rid)
-            return True
-        with suppress(Exception):
-            self.promotion(noticeId=rid)
-            return True
-        return False
-
-    def get_staff(self, community):
-        if isinstance(community, int):
-            with suppress(Exception):
-                community = self.client.get_community_info(com_id=community)
-        else:
-            try:
-                informations = self.client.get_from_code(f"http://aminoapps.com/c/{community}")
-            except Exception:
-                return False
-
-            community_id = informations.json["extensions"]["community"]["ndcId"]
-            community = self.client.get_community_info(comId=community_id)
-
-        try:
-            community_staff_list = community.json["communityHeadList"]
-            community_staff = [elem["uid"] for elem in community_staff_list]
-        except Exception:
-            community_staff_list = ""
-        else:
-            return community_staff
-
-    def get_user_id(self, name_or_id):
-        members = self.get_all_users(size=1).json['userProfileCount']
-        start = 0
-        lower_name = None
-
-        while start <= members:
-            users = self.get_all_users(start=start, size=100).json['userProfileList']
-            for user in users:
-                name = user['nickname']
-                uid = user['uid']
-
-                if name_or_id == name or name_or_id == uid:
-                    return (name, uid)
-                if not lower_name and name_or_id.lower() in name.lower():
-                    lower_name = (name, uid)
-            start += 100
-
-        return lower_name if lower_name else None
-
-    def ask_all_members(self, message, lvl: int = 20, type_bool: int = 1):
-        def ask(uid):
-            print(uid)
-            try:
-                self.start_chat(userId=[uid], message=message)
-            except Exception:
-                self.start_chat(userId=[uid], message=message)
-
-        size = self.get_all_users(start=0, size=1, type="recent").json['userProfileCount']
-        st = 0
-
-        while size > 0:
-            value = size
-            if value > 100:
-                value = 100
-            users = self.get_all_users(start=st, size=value)
-            if type_bool == 1:
-                [ask(user["uid"]) for user in users.json['userProfileList'] if user['level'] == lvl]
-            elif type_bool == 2:
-                [ask(user["uid"]) for user in users.json['userProfileList'] if user['level'] <= lvl]
-            elif type_bool == 3:
-                [ask(user["uid"]) for user in users.json['userProfileList'] if user['level'] >= lvl]
-            size -= 100
-            st += 100
-
-    def ask_amino_staff(self, message):
-        self.start_chat(userId=self.community_staff, message=message)
-
-    def get_chat_id(self, chat: str = None):
-        with suppress(Exception):
-            return self.get_from_code(f"http://aminoapps.com/c/{chat}").objectId
-
-        val = self.get_public_chat_threads()
-        for title, chat_id in zip(val.title, val.chatId):
-            if chat == title:
-                return chat_id
-
-        for title, chat_id in zip(val.title, val.chatId):
-            if chat.lower() in title.lower() or chat == chat_id:
-                return chat_id
-        return False
-
-    def stop_instance(self):
-        self.marche = False
-
-    def start_instance(self):
-        self.marche = True
-        Thread(target=self.passive).start()
-
-    def leave_amino(self):
-        self.marche = False
-        for elem in self.get_public_chat_threads().chatId:
-            with suppress(Exception):
-                self.leave_chat(elem)
-        self.client.leave_community(comId=self.community_id)
-
-    def check_new_member(self):
-        if not (self.message_bvn or self.welcome_chat):
-            return
-        new_list = self.get_all_users(start=0, size=25, type="recent")
-        new_member = [(elem["nickname"], elem["uid"]) for elem in new_list.json["userProfileList"]]
-        for elem in new_member:
-            name, uid = elem[0], elem[1]
-
-            val = self.get_wall_comments(userId=uid, sorting='newest').commentId
-
-            if not val and self.message_bvn:
-                with suppress(Exception):
-                    self.comment(message=self.message_bvn, userId=uid)
-
-            if not val and self.welcome_chat:
-                with suppress(Exception):
-                    self.send_message(chatId=self.welcome_chat, message=f"Welcome here ‎‏‎‏@{name}!‬‭", mentionUserIds=[uid])
-
-        new_users = self.get_all_users(start=0, size=30, type="recent")
-        self.new_users = [elem["uid"] for elem in new_users.json["userProfileList"]]
-
-    def welcome_new_member(self):
-        new_list = self.get_all_users(start=0, size=25, type="recent")
-        new_member = [(elem["nickname"], elem["uid"]) for elem in new_list.json["userProfileList"]]
-
-        for elem in new_member:
-            name, uid = elem[0], elem[1]
-
-            val = self.get_wall_comments(userId=uid, sorting='newest').commentId
-
-            if not val and uid not in self.new_users and self.message_bvn:
-                with suppress(Exception):
-                    self.comment(message=self.message_bvn, userId=uid)
-
-            if uid not in self.new_users and self.welcome_chat:
-                with suppress(Exception):
-                    self.send_message(chatId=self.welcome_chat, message=f"Welcome here ‎‏‎‏@{name}!‬‭", mentionUserIds=[uid])
-
-        new_users = self.get_all_users(start=0, size=30, type="recent")
-        self.new_users = [elem["uid"] for elem in new_users.json["userProfileList"]]
-
-    def feature_chats(self):
-        for elem in self.favorite_chats:
-            with suppress(Exception):
-                self.favorite(time=2, chatId=elem)
-
-    def feature_users(self):
-        featured = [elem["uid"] for elem in self.get_featured_users().json["userProfileList"]]
-        for elem in self.favorite_users:
-            if elem not in featured:
-                with suppress(Exception):
-                    self.favorite(time=1, userId=elem)
-
-    def get_member_level(self, uid):
-        return self.get_user_info(userId=uid).level
-
-    def get_member_titles(self, uid):
-        with suppress(Exception):
-            return self.get_user_info(userId=uid).customTitles
-        return False
-
-    def get_wallet_amount(self):
-        return self.client.get_wallet_info().totalCoins
-
-    def generate_transaction_id(self):
-        return str(uuid4())
-
-    def pay(self, coins: int = 0, blogId: str = None, chatId: str = None, objectId: str = None, transactionId: str = None):
-        if not transactionId:
-            transactionId = self.generate_transaction_id()
-        self.send_coins(coins=coins, blogId=blogId, chatId=chatId, objectId=objectId, transactionId=transactionId)
-
-    def favorite(self, time: int = 1, userId: str = None, chatId: str = None, blogId: str = None, wikiId: str = None):
-        self.feature(time=time, userId=userId, chatId=chatId, blogId=blogId, wikiId=wikiId)
-
-    def unfavorite(self, userId: str = None, chatId: str = None, blogId: str = None, wikiId: str = None):
-        self.unfeature(userId=userId, chatId=chatId, blogId=blogId, wikiId=wikiId)
-
-    def join_chatroom(self, chat: str = None, chatId: str = None):
-        if not chat:
-            with suppress(Exception):
-                self.join_chat(chatId)
-                return ""
-
-        with suppress(Exception):
-            chati = self.get_from_code(f"{chat}").objectId
-            self.join_chat(chati)
-            return chat
-
-        chats = self.get_public_chat_threads()
-        for title, chat_id in zip(chats.title, chats.chatId):
-            if chat == title:
-                self.join_chat(chat_id)
-                return title
-
-        chats = self.get_public_chat_threads()
-        for title, chat_id in zip(chats.title, chats.chatId):
-            if chat.lower() in title.lower() or chat == chat_id:
-                self.join_chat(chat_id)
-                return title
-
-        return False
-
-    def start_screen_room(self, chatId: str, joinType: int=1):
-        self.client.join_video_chat(comId=self.community_id, chatId=chatId, joinType=joinType)
-
-    def start_voice_room(self, chatId: str, joinType: int=1):
-        self.client.join_voice_chat(comId=self.community_id, chatId=chatId, joinType=joinType)
-
-    def join_screen_room(self, chatId: str, joinType: int=1):
-        self.client.join_video_chat_as_viewer(comId=self.community_id, chatId=chatId, joinType=joinType)
-
-
-    def get_chats(self):
-        return self.get_public_chat_threads()
-
-    def join_all_chat(self):
-        for elem in self.get_public_chat_threads().chatId:
-            with suppress(Exception):
-                self.join_chat(elem)
-
-    def leave_all_chats(self):
-        for elem in self.get_public_chat_threads().chatId:
-            with suppress(Exception):
-                self.leave_chat(elem)
-
-    def follow_user(self, uid):
-        self.follow(userId=[uid])
-
-    def unfollow_user(self, uid):
-        self.unfollow(userId=uid)
-
-    def add_title(self, uid: str, title: str, color: str = None):
-        member = self.get_member_titles(uid)
-        try:
-            titles = [i['title'] for i in member] + [title]
-            colors = [i['color'] for i in member] + [color]
-        except TypeError:
-            titles = [title]
-            colors = [color]
-
-        self.edit_titles(uid, titles, colors)
-        return True
-
-    def remove_title(self, uid: str, title: str):
-        member = self.get_member_titles(uid)
-        tlist = []
-        clist = []
-
-        for t in member:
-            if t["title"] != title:
-                tlist.append(t["title"])
-                clist.append(t["color"])
-        self.edit_titles(uid, tlist, clist)
-        return True
-
-    def passive(self):
-        def upt_activity():
-            timeNow = int(datetime.timestamp(datetime.now()))
-            timeEnd = timeNow + 300
-            try:
-                self.send_active_obj(startTime=timeNow, endTime=timeEnd)
-            except Exception:
-                pass
-
-        def change_bio_and_welcome_members():
-            if self.welcome_chat or self.message_bvn:
-                Thread(target=self.welcome_new_member).start()
-            try:
-                self.activity_status('on')
-                if isinstance(self.bio_contents, list):
-                    self.edit_profile(content=choice(self.bio_contents))
-
-                elif isinstance(self.bio_contents, str):
-                    self.edit_profile(content=self.bio_contents)
-
-            except Exception as e:
-                print_exception(e)
-
-        def feature_chats():
-            try:
-                Thread(target=self.feature_chats).start()
-            except Exception as e:
-                print_exception(e)
-
-        def feature_users():
-            try:
-                Thread(target=self.feature_users).start()
-            except Exception as e:
-                print_exception(e)
-
-        feature_chats()
-        feature_users()
-
-        j = 0
-        k = 0
-        while self.marche:
-            change_bio_and_welcome_members()
-            if j >= 240:
-                feature_chats()
-                j = 0
-            if k >= 2880:
-                feature_users()
-                k = 0
-
-            slp(30)
-            if self.activity:
-                upt_activity()
-            j += 1
-            k += 1
+client.launch(False)
+print("ready")
+  		
+
+
+
+
+
+print("ready\n")
+
+@client.command("global")
+def g(data):
+																		mention=data.subClient.get_message_info(chatId=data.chatId,messageId=data.messageId).mentionUserIds
+																		for user in mention:
+																			link=client.get_from_id(user,0).shortUrl
+																			data.subClient.send_message(data.chatId,message=link)											
+
+@client.command("check")
+def test(data):
+    data.subClient.send_message(data.chatId, f"BOT IS ONLINE {data.author}")
+
+
+@client.command("say")
+def say_something(data):
+    audio_file = f"soundfx.mp3"
+    gTTS(text=data.message, lang='en', slow=False).save(audio_file)
+    with open(audio_file, 'rb') as fp:
+        data.subClient.send_message(data.chatId, file=fp, fileType="audio")
+        os.remove(audio_file)
+
+@client.command("addtitle")
+def give_a_title(data):
+    data.subClient.add_title(data.authorId, data.message)
+    data.subClient.send_message(chatId=data.chatId, message="Done!")
+    
+@client.command("removetitle")
+def remove_title(data):
+    data.subClient.remove_title(data.authorId, data.message)
+    data.subClient.send_message(chatId=data.chatId, message="removed!")  
+  
+
+@client.command("help")
+def vkidsnusovski(data):
+    data.subClient.send_message(data.chatId, message="""
+[C] I'm a bot vkidsnusovski! My Commands / My Commands
+[C]! help [Bott Information!]
+[C]! Zabiv [player1, player2] - game scoring without rules au🦁💪🏿
+[C]! SNUS [User] - Make a Thermonuclear WC
+[C]! Randemoji - team so that the bot threw 5 random stickers!
+[C]! FancyText [Text] - team so that the bot decorated the text!
+[C]! LUV [User - 1, User - 2] - Team To Check who sucks!
+[C]! Google [Text] - a team to look for something in Google!
+[C]! QS [Text] - team to ask a bot!
+[C]! Joinallchats - team so that the bot entered all active chats.
+[C]! Chatinfo - team to get a Chatid chat from the bot.
+[C]! Text [Text] - write something on behalf of the bot
+[C]! help2[Second part of the bots!""")
+
+@client.command("help2")
+def vkidsnusovski2(data):
+	data.subClient.send_message(data.chatId, message="""
+[C]! Follow - team to subscribe to you.
+[C]! Unfollow - team so that the bot unsubscribed from you.
+[C]! JOINCHAT [LINK TO CHAT / CHAT LINK] - A command to go to the selected chat by reference
+[C]! Backgr - team to get a chat background!)
+[C]! Staffask [Text] - a team to anonymously write through the bot all the curators, leaders.
+[C]! SPERM - Secret Team
+[C]! TRANSLATE [Text] - team to translate something into English
+[C]! Stickmg - command to get a sticker as an image.
+[C]! Reboot - team to restart the bot!
+[C]! Msgtypes - command to get message types.
+[C]! help3 [third part of the bots!
+""") 
+
+@client.command("help3")
+def help3(data):
+	data.subClient.send_message(data.chatId, message="""
+[b]Command
+[C]!check- for bot online or offline
+[c]!profileinfo-for user information
+[C]!global- for user global id (global) mention
+[C]!say- (say)textmsg
+[C]!addtitle- (title) if bot have leadership
+[C]!removetitle - 
+[C]!comment-(?)""") 
+
+
+@client.on_member_leave_chat(["chatId"]) # the chatId is not necessary, put one if you want a specified chat only
+def poka(data):
+    data.subClient.send_message(data.chatId, f"Someone Left the group i hope he/she will be back Now  (RIP) {data.author} ")
+
+
+############################Commands info in english!############################
+#vkidsnusovski [Information about the bot!]
+#vkidsnusovski2 [information about the bot2!]
+#!zabiv [player1, player2] - Scoring game without rules  🦁 💪 🏿 command  author github.com/BrenoMartinsDeOliveiraVasconcelo
+#!snus - [User] - A fun command for snus🥴
+#!luv [User-1, User-2] - A command to Check who sucks who!
+#!google [Text] - A command to search for something in google!
+#!qs [Text] - Command to ask a question to the bot!
+#!joinallchats-A command for the bot to log in to all active chats.
+#!joinchat [Link to the chat/Chat Link] - Command for the bot to enter the selected chat using the link
+#!chatinfo - Command for get chatId of the chat
+#!follow - command to let the bot follow to you
+#!backgr - Command for get background image of the chat!
+#!staffask [Text] - A command to write anonymously through the bot to all curators and leaders.
+#!sperm - secret command
+#!translate [Text] - A command to translate something into English
+#!stickmg - Command for convert sticker to image.
+#
+################################################commands/команды################################################
+@client.command("luv")
+def luv(data):
+		msg = data.message + " null null "
+		msg = msg.split(" ")
+		msg[2] = msg[1]
+		msg[1] = msg[0]
+		try:
+			data.subClient.send_message(chatId=data.chatId, message=f"Вероятность того что  {msg[1]} сосет у {msg[2]} равна {random.randint(0,100)}%")
+		except:
+			pass
+
+@client.command("google")
+def google(data):
+    msg = data.message.split(" ")
+    msg = '+'.join(msg)
+    data.subClient.send_message(chatId=data.chatId, message=f"https://www.google.com/search?q={msg}")
+
+@client.command("snus")
+def snus(data):
+	msg = data.message + " null "
+	msg = msg.split(" ")
+	msg[1] = msg[0]
+	try:
+		data.subClient.send_message(chatId=data.chatId, message=f"{msg[1]} сделал термоядерный снюсовый супер вкид овсянкасер🥴...")
+	except:
+		pass
+#command author github.com/BrenoMartinsDeOliveiraVasconcelos
+@client.command("zabiv")
+def zabiv(data):
+	msg = data.message + " null null "
+	msg = msg.split(" ")
+	try:
+		rounds = int(msg[0])
+	except (TypeError, ValueError):
+		rounds = 5
+		msg[2] = msg[1]
+		msg[1] = msg[0]
+		msg[0] = 5
+	data.subClient.send_message(chatId=data.chatId, message=f"Начинается забив между  {msg[1]} и {msg[2]}...")
+	win1 = 0
+	win2 = 0
+	round = 0
+	agress = ''
+	defens = ''
+	for zabiv in range(0, rounds):
+		round = round + 1
+		data.subClient.send_message(chatId=data.chatId, message=f"[bc]Round/Раунд {round}/{rounds}")
+		punch = randint(0, 1)
+		if punch == 0:
+			win1 = win1 + 1
+			agress = msg[1]
+			defens = msg[2]
+		else:
+			     	win2 = win2 + 1
+			     	agress = msg[2]
+			     	defens = msg[1]
+		time.sleep(4)
+		data.subClient.send_message(chatId=data.chatId, message=f"[ic] {agress} ударил👊🏿 {defens}!")
+		if win1 > win2:
+		  data.subClient.send_message(chatId=data.chatId, message=f"[bcu]{msg[1]} Выиграл в забиве!")
+		elif win1 < win2:
+		  	data.subClient.send_message(chatId=data.chatId, message=f"[bcu]{msg[2]} Выиграл в забиве!")
+		elif win1 == win2:
+		  		data.subClient.send_message(chatId=data.chatId, message=f"[iC]Ничья никто не выиграл кроме бабки в кедах!.")
+#Команда для вопросов для бота
+@client.command("qs")
+def qs(data):
+	lis = ['Возможно', 'Да', 'Нет', 'Конечно', 'Наверное']
+	msg = data.message + "null?"
+	msg = data.message.split(" ")
+	data.subClient.send_message(chatId=data.chatId, message=str(random.choice(lis)))
+
+@client.command("sperm")
+def sperm(data):
+	msg = data.message + " null "
+	msg = msg.split(" ")
+	msg[2] = msg[1]
+	msg[1] = msg[0]
+	try:
+		data.subClient.send_message(chatId=data.chatId, message=f"{msg[1]} получил сперму в рот и был забит членом досмерти...")
+	except:
+		pass
+#Команда чтобы бот заходил во все активные чаты
+@client.command("joinallchats")
+def joinallchats(data):
+	print(type(data))
+	data.subClient.send_message(chatId=data.chatId, message="We go to all active chats in the community ...")
+	data.subClient.join_all_chat()
+	data.subClient.send_message(chatId=data.chatId, message="Located in all active chats!")
+@client.command("joinchat")
+def joinchat(data):
+	try:
+		data.subClient.send_message(chatId=data.chatId, message="Заходим в выбранный чат")
+		data.subClient.join_chatroom(data.message)
+		data.subClient.send_message(chatId=data.chatId, message="Зашли в выбранный чат")
+	except:
+		data.subClient.send_message(chatId=data.chatId, message="Не удалось зайти в выбранный чат возможно бота кикнули!")
+		pass
+
+@client.command("follow")
+def follow(data):
+	try:
+		data.subClient.send_message(data.chatId, f'following now {data.author}')
+		data.subClient.follow_user(data.authorId)
+	except:
+		data.subClient.send_message(data.chatId, f'Failed to subscribe to {data.author}')
+		pass
+
+@client.command("chatinfo")
+def chatinfo(data):
+	data.subClient.send_message(data.chatId, f"chatId = {data.chatId}")
+
+@client.command("backgr")
+def backgr(data):
+        image = data.subClient.get_chat_thread(chatId=data.chatId).backgroundImage
+        if image:
+            filename = path.basename(image)
+            urllib.request.urlretrieve(image, filename)
+            with open(filename, 'rb') as fp: data.subClient.send_message(data.chatId, file=fp, fileType="image")
+            os.remove(filename)
+
+@client.command("staffask")
+def staffask(data):
+	msg = data.message + " null "
+	msg = msg.split(" ")
+	msg[2] = msg[1]
+	msg[1] = msg[0]
+	data.subClient.ask_amino_staff(message=msg[1])
+	data.subClient.ask_amino_staff(message=f"This message was sent to {data.author} / I'm a bot! Have a nice day")
+
+@client.command("translate")
+def translate(data):
+    translator = google_translator()
+    translate_text = translator.translate(data.message)
+    data.subClient.send_message(data.chatId, f"Перевод: {translate_text}")
+
+@client.command("stickmg")
+def stickmg(data):
+	info = data.subClient.get_message_info(chatId = data.chatId, messageId = data.messageId)
+	reply_message = info.json['extensions']
+	if reply_message:
+	   image = info.json['extensions']['replyMessage']['extensions']['sticker']['icon']
+	   filename = image.split("/")[-1]
+	   filetype = image.split(".")[-1]
+	   if filetype!="gif":
+	   	filetype = "image"
+	   	urllib.request.urlretrieve(image, filename)
+	   	with open(filename, 'rb') as fp: data.subClient.send_message(data.chatId, file=fp, fileType="image")
+	os.remove(filename)
+
+#########Команда для изменения ника бота/Command to change the bot's nickname############
+@client.command("nckname")
+def nckname(data):
+	data.subClient.subclient.edit_profile(nickname=data.message)
+	data.subClient.send_message(chatId=data.chatId,message=f"Bot nickname changed to {data.message}")
+
+@client.command("unfollow")
+def unfollow(data):
+    data.subClient.send_message(data.chatId, f'Unsubscribed from {data.author}')
+    data.subClient.unfollow_user(data.authorId)
+
+@client.command("welcome")
+def welcome(data):
+        data.subClient.set_welcome_message(data.message)
+        data.subClient.send_message(data.chatId, "Welcome message changed ")
+        
+@client.command("randemoji")
+def randemoji(data):
+	lis = ['😰😨😱😓🤯', '😎🤡🥴🤕🌚', '🌝🥸👻🎃', '😺👹😈😇💩', '😛😉😊😘🥳', '🤣😀😆🥰🙂', '☺️😑🙃😶🤗', '🤩😋😔😌☺️', '🤫🤐🥺🙄🤔', '🧐😤😠😳🤯', '😓😥😩😖😵', '🌞🤮🤧🤒🎃', '😍😚🤭🥲😄', '😃😂🤣😭😰', '🤬😡😮😯😲', '🤓🤑🤠😇😷', '🥵🥶👺☠️👽', '😸😹😺😻😼', '😽🙀😿😾💀', '❤️🧡💛💚💙', '💜🤎🖤🤍♥️', '💘💝💖💗💓', '💞💕💌💟❣️', '💔💋👅👄👀', '🦾🦠🦷🏵️💐', '🧝🧙🧛🧟🥷', '😪😴🥱🤤🙄', '👿😈🔥⭐🌟', '🎊🎉🕳️💤💦', '🌜👻🤖💢⚡', '✨💫👁️🍂☀️', '🧠🫀🫁🩸🌡️', '👉👌🍺🍷👄', '🦁🐻🐼🐨🐹', '🐭🐷🐸🙉🐶', '🌌🌠🌉🌆🌃', '🕊️🦅🐦🦥🦏', '🐲🦖🐢🦮🐈', '🐐🦬🐖🐑🐆', '🦍🦧🐿️🦦🦈', '🐝🐠🐋🦋🐜', '🍔🍖🍗🌭🥪', '🥞🍳🫓🌮🍕', '🍉🍓🍒🫐🍎', '🧆🥙🥘🍜🦪', '🍧🍱🥟🍚🍢', '🍰🍙🍡🍣🍟', '🧇🥯🌯🥟🥡', '🍭🍩🍪🥮🍨', '🥗🍲🫕🍥🍿', '🥃🍾🍹🍸🍻', '🅿️🅾️🆘ℹ️🖕🏿', '🤏✋👊🙌👇', '👾🕹️🎮🎲🃏', '💵💴💶💷💰', '🇺🇸🇹🇨🇸🇻🇺🇦🇼🇸', '🏤🏣🏨🏥🏩']
+	data.subClient.send_message(data.chatId, message=str(random.choice(lis)))
+
+@client.command("fancytext")
+def fancytext(data):
+	msg = data.message + " null "
+	msg = msg.split(" ")
+	msg[1] = msg[0]
+	data.subClient.send_message(data.chatId, message=fancy.light(msg[1]))
+	data.subClient.send_message(data.chatId, message=fancy.bold(msg[1]))
+	data.subClient.send_message(data.chatId, message=fancy.box(msg[1]))
+	data.subClient.send_message(data.chatId, message=fancy.sorcerer(msg[1]))
+
+
+
+@client.command("comment")
+def comment_profile(data):
+	data.subClient.comment(message="Painting from http://aminoapps.com/p/5kk6y48😎 I wish you all the best!", userId=data.authorId)
+	data.subClient.send_message(data.chatId, message="The bot left you a painting on the wall!")
+
+@client.command("msgtypes")
+def msgtypes(data):
+	data.subClient.send_message(data.chatId, message="""
+[BC]--MESSAGETYPES--
+[C]0 - BASE
+[C]1 - STRIKE
+[C]50 - UNSUPPORTED_MESSAGE
+[C]57 - REJECTED_VOICE_CHAT
+[C]58 - MISSED_VOICE_CHAT
+[C]59 - CANCELED_VOICE_CHAT
+[C]100 - DELETED_MESSAGE
+[C]101 - JOINED_CHAT
+[C]102 - LEFT_CHAT
+[C]103 - STARTED_CHAT
+[C]104 - CHANGED_BACKGROUND
+[C]105 - EDITED_CHAT
+[C]106 - EDITED_CHAT_ICON
+[C]107 - STARTED_VOICE_CHAT
+[C]109 - UNSUPPORTED_MESSAGE
+[C]110 - ENDED_VOICE_CHAT
+[C]113 - EDITED_CHAT_DESCRIPTION
+[C]114 - ENABLED_LIVE_MODE
+[C]115 - DISABLED_LIVE_MODE
+[C]116 - NEW_CHAT_HOST
+[C]124 - INVITE_ONLY_CHANGED
+[C]125 - ENABLED_VIEW_ONLY
+[C]126 - DISABLED_VIEW_ONLY
+""")
+
+@client.command("text")
+def say_text(data):
+	data.subClient.send_message(data.chatId, message=data.message)
+
+@client.command("profileinfo")
+def profileinfo(data):
+	repa = data.subClient.get_user_info(data.authorId).reputation
+	lvl = data.subClient.get_user_info(data.authorId).level
+	crttime = data.subClient.get_user_info(data.authorId).createdTime
+	followers = data.subClient.get_user_achievements(data.authorId).numberOfFollowersCount
+	profilchange = data.subClient.get_user_info(data.authorId).modifiedTime
+	commentz = data.subClient.get_user_info(data.authorId).commentsCount
+	posts = data.subClient.get_user_achievements(data.authorId).numberOfPostsCreated
+	followed = data.subClient.get_user_info(data.authorId).followingCount
+	sysrole = data.subClient.get_user_info(data.authorId).role
+	data.subClient.send_message(data.chatId, message=f"""
+[C]Nickname: {data.author}
+[C]UserId: {data.authorId}
+[C]Account created time: {crttime}
+[C]Last time the profile was changed: {profilchange}
+[C]Reputation number: {repa}
+[C]Account level: {lvl}
+[C]Number of posts created in the profile: {posts}
+[C]Number of comments on the profile wall: {commentz}
+[C]The number of people you follow: {followed}
+[C]Account followers: {followers}
+[C]Account number in system: {sysrole}
+	""")
+
+client.launch()
+################################################commands/команды################################################
+time.sleep(10)
+print("Bot started")
+
+#socket
+def restart():
+    while True:
+        time.sleep(120)
+        count = 0
+        for i in threading.enumerate():
+            if i.name == "restart_thread":
+                count += 1
+        if count <= 1:
+            print("Restart")
+            client.socket.close()
+            client.socket.start()
+
+restart()
