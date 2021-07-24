@@ -1,5 +1,6 @@
 import amino
 from BotAmino import *
+import heroku
 from fancy_text import fancy
 from BotAmino import BotAmino
 import sys
@@ -15,7 +16,7 @@ from os import path
 from random import uniform, choice, randint
 email = "ravimourya526@yahoo.com"
 password = "ravi1234oppo"
-client = BotAmino(email=email, password=password)
+client = BotAmino(email=ravimourya526@yahoo.com, password=ravi1234oppo)
 vers = "2.0.4"
 print(f"Bot Version = {vers}")
 
